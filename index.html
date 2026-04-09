@@ -78,6 +78,46 @@
           </div>
         </div>
       </section>
+
+      <section class="panel arena-panel" data-screen="game" aria-hidden="true">
+        <div class="arena-scene">
+          <div class="arena-glow arena-glow-left" aria-hidden="true"></div>
+          <div class="arena-glow arena-glow-right" aria-hidden="true"></div>
+          <div class="arena-horizon" aria-hidden="true"></div>
+          <div class="arena-floor" aria-hidden="true"></div>
+          <div class="potato-projectiles" id="potatoProjectiles" aria-hidden="true"></div>
+
+          <div class="arena-header">
+            <p class="eyebrow">Potato Throw Arena</p>
+            <h2 id="gameSessionLabel">Potato Target</h2>
+            <p class="arena-subcopy">The selected photo stands in the center lane, ready for the first potato.</p>
+            <span class="arena-file-chip" id="gameFileName">portrait.jpg</span>
+          </div>
+
+          <div class="arena-stage">
+            <div class="arena-beam" aria-hidden="true"></div>
+            <div class="arena-ring arena-ring-large" aria-hidden="true"></div>
+            <div class="arena-ring arena-ring-small" aria-hidden="true"></div>
+            <div class="arena-shadow" aria-hidden="true"></div>
+            <div class="arena-pedestal" aria-hidden="true"></div>
+
+            <div class="photo-monolith">
+              <div class="photo-monolith-frame">
+                <img id="gamePhoto" alt="Current target for the potato throwing game">
+              </div>
+            </div>
+          </div>
+
+          <img
+            class="potato-cursor"
+            id="potatoCursor"
+            src="./resources/common_potato.png"
+            alt=""
+            aria-hidden="true"
+            draggable="false"
+          >
+        </div>
+      </section>
     </main>
 
     <div class="modal-backdrop" id="noticeModal" hidden>
