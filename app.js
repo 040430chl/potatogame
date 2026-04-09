@@ -19,6 +19,7 @@ const noticeConfirmButton = document.getElementById("noticeConfirmButton");
 
 let helloIndex = 0;
 let activePhoto = null;
+let hasShownNoticeForPhoto = false;
 
 const showScreen = (target) => {
   Object.entries(screens).forEach(([name, element]) => {
@@ -49,6 +50,7 @@ const applyFile = (file) => {
   }
 
   activePhoto = file;
+  hasShownNoticeForPhoto = false;
   fileName.textContent = file.name;
 
   const reader = new FileReader();
@@ -57,6 +59,10 @@ const applyFile = (file) => {
     uploadIdle.hidden = true;
     uploadPreview.hidden = false;
     updateLaunchState();
+    if (!hasShownNoticeForPhoto) {
+      setNoticeOpen(true);
+      hasShownNoticeForPhoto = true;
+    }
   };
   reader.readAsDataURL(file);
 };
@@ -90,7 +96,8 @@ dropzone.addEventListener("drop", (event) => {
 });
 
 launchButton.addEventListener("click", () => {
-  setNoticeOpen(true);
+  const sessionLabel = sessionName.value.trim() || "새 세션";
+  window.alert(`"${sessionLabel}" 준비 완료.\n다음 단계에서 감자 던지기 게임 화면을 연결하면 됩니다.`);
 });
 
 noticeCloseButton.addEventListener("click", () => {
@@ -98,9 +105,7 @@ noticeCloseButton.addEventListener("click", () => {
 });
 
 noticeConfirmButton.addEventListener("click", () => {
-  const sessionLabel = sessionName.value.trim() || "새 세션";
   setNoticeOpen(false);
-  window.alert(`"${sessionLabel}" 준비 완료.\n다음 단계에서 감자 던지기 게임 화면을 연결하면 됩니다.`);
 });
 
 noticeModal.addEventListener("click", (event) => {
