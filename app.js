@@ -17,9 +17,12 @@ const noticeModal = document.getElementById("noticeModal");
 const noticeCloseButton = document.getElementById("noticeCloseButton");
 const noticeConfirmButton = document.getElementById("noticeConfirmButton");
 
+const NOTICE_ANIMATION_MS = 320;
+
 let helloIndex = 0;
 let activePhoto = null;
-let hasShownNoticeForPhoto = false;
+let isLaunchAcknowledged = false;
+let noticeHideTimer = null;
 
 const showScreen = (target) => {
   Object.entries(screens).forEach(([name, element]) => {
@@ -40,8 +43,31 @@ const updateLaunchState = () => {
 };
 
 const setNoticeOpen = (isOpen) => {
-  noticeModal.hidden = !isOpen;
-  document.body.style.overflow = isOpen ? "hidden" : "";
+  if (noticeHideTimer) {
+    window.clearTimeout(noticeHideTimer);
+    noticeHideTimer = null;
+  }
+
+  if (isOpen) {
+    noticeModal.hidden = false;
+    noticeModal.classList.remove("is-closing");
+    document.body.style.overflow = "hidden";
+
+    window.requestAnimationFrame(() => {
+      noticeModal.classList.add("is-visible");
+    });
+    return;
+  }
+
+  noticeModal.classList.remove("is-visible");
+  noticeModal.classList.add("is-closing");
+
+  noticeHideTimer = window.setTimeout(() => {
+    noticeModal.hidden = true;
+    noticeModal.classList.remove("is-closing");
+    document.body.style.overflow = "";
+    noticeHideTimer = null;
+  }, NOTICE_ANIMATION_MS);
 };
 
 const applyFile = (file) => {
@@ -50,7 +76,6 @@ const applyFile = (file) => {
   }
 
   activePhoto = file;
-  hasShownNoticeForPhoto = false;
   fileName.textContent = file.name;
 
   const reader = new FileReader();
@@ -59,10 +84,6 @@ const applyFile = (file) => {
     uploadIdle.hidden = true;
     uploadPreview.hidden = false;
     updateLaunchState();
-    if (!hasShownNoticeForPhoto) {
-      setNoticeOpen(true);
-      hasShownNoticeForPhoto = true;
-    }
   };
   reader.readAsDataURL(file);
 };
@@ -95,6 +116,20 @@ dropzone.addEventListener("drop", (event) => {
   applyFile(file);
 });
 
+launchButton.addEventListener(
+  "click",
+  (event) => {
+    if (!activePhoto || isLaunchAcknowledged) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    setNoticeOpen(true);
+  },
+  true
+);
+
 launchButton.addEventListener("click", () => {
   const sessionLabel = sessionName.value.trim() || "새 세션";
   window.alert(`"${sessionLabel}" 준비 완료.\n다음 단계에서 감자 던지기 게임 화면을 연결하면 됩니다.`);
@@ -105,7 +140,10 @@ noticeCloseButton.addEventListener("click", () => {
 });
 
 noticeConfirmButton.addEventListener("click", () => {
+  isLaunchAcknowledged = true;
   setNoticeOpen(false);
+  launchButton.click();
+  isLaunchAcknowledged = false;
 });
 
 noticeModal.addEventListener("click", (event) => {
