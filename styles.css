@@ -177,7 +177,8 @@ input {
 }
 
 .primary-button,
-.secondary-button {
+.secondary-button,
+.ghost-button {
   appearance: none;
   border: 0;
   border-radius: 999px;
@@ -198,7 +199,8 @@ input {
 }
 
 .primary-button:hover,
-.secondary-button:hover {
+.secondary-button:hover,
+.ghost-button:hover {
   transform: translateY(-2px);
 }
 
@@ -380,6 +382,58 @@ input {
   transform: none;
 }
 
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.28);
+  backdrop-filter: blur(18px);
+  z-index: 20;
+}
+
+.notice-modal {
+  width: min(680px, 100%);
+  padding: clamp(24px, 3vw, 36px);
+  border-radius: 32px;
+  background: rgba(255, 255, 255, 0.84);
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  box-shadow: 0 30px 90px rgba(15, 23, 42, 0.18);
+}
+
+.notice-modal h3 {
+  margin: 0;
+  font-size: clamp(1.7rem, 3vw, 2.4rem);
+  line-height: 1.05;
+  letter-spacing: -0.05em;
+}
+
+.notice-copy {
+  margin-top: 20px;
+  display: grid;
+  gap: 14px;
+}
+
+.notice-copy p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.8;
+}
+
+.notice-actions {
+  margin-top: 26px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.ghost-button {
+  background: rgba(15, 23, 42, 0.05);
+  color: var(--accent);
+  font-weight: 600;
+}
+
 @media (max-width: 960px) {
   body {
     overflow: auto;
@@ -420,5 +474,14 @@ input {
   .preview-overlay {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .notice-actions {
+    flex-direction: column;
+  }
+
+  .ghost-button,
+  .notice-actions .primary-button {
+    width: 100%;
   }
 }

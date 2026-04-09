@@ -79,6 +79,31 @@
         </div>
       </section>
     </main>
+
+    <div class="modal-backdrop" id="noticeModal" hidden>
+      <section class="notice-modal" role="dialog" aria-modal="true" aria-labelledby="noticeTitle">
+        <p class="eyebrow">Important Notice</p>
+        <h3 id="noticeTitle">가상 감자 투척 이용 전 고지사항</h3>
+        <div class="notice-copy">
+          <p>
+            본 프로그램은 일시적인 심리 환기와 가벼운 웃음을 목적으로 설계된 디지털 감자 투척 인터페이스입니다.
+            사용자는 업로드하는 이미지의 소유권, 초상권, 명예, 체면, 그리고 월요일 아침의 감정적 파장을 스스로 확인해야 합니다.
+          </p>
+          <p>
+            특히 실제 상사, 동료, 거래처 담당자, 임원, 또는 회식 자리에서 고기 굽기만 시키던 특정 인물의 사진을 사용할 경우,
+            그로 인해 발생하는 모든 민망함과 후폭풍에 대해 본 제작자는 책임을 부담하지 않습니다.
+          </p>
+          <p>
+            다시 말해, 들키면 사용자의 문제입니다.
+            본 서비스는 감자를 던져드릴 뿐, 그 이후의 사회생활까지 보장하지 않습니다.
+          </p>
+        </div>
+        <div class="notice-actions">
+          <button class="ghost-button" id="noticeCloseButton" type="button">닫기</button>
+          <button class="primary-button" id="noticeConfirmButton" type="button">이해했고, 신중히 던지겠습니다</button>
+        </div>
+      </section>
+    </div>
   </div>
 
   <script src="./app.js"></script>
