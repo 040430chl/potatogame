@@ -39,7 +39,8 @@ body {
 
 html,
 body {
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 button,
@@ -51,13 +52,13 @@ input {
   position: relative;
   width: 100%;
   min-height: 100dvh;
-  height: 100dvh;
-  overflow: hidden;
+  height: auto;
+  overflow: visible;
   isolation: isolate;
 }
 
 .ambient {
-  position: absolute;
+  position: fixed;
   width: 32rem;
   height: 32rem;
   border-radius: 50%;
@@ -81,7 +82,7 @@ input {
 .stage {
   width: min(1180px, calc(100% - 40px));
   min-height: 100dvh;
-  height: 100dvh;
+  height: auto;
   margin: 0 auto;
   display: grid;
   place-items: center;
@@ -1129,11 +1130,12 @@ input {
 
 @media (max-width: 960px) {
   body {
-    overflow: hidden;
+    overflow-x: hidden;
+    overflow-y: auto;
   }
 
   .stage {
-    min-height: auto;
+    min-height: 100dvh;
     padding: 20px 0 28px;
   }
 
