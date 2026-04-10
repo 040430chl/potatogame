@@ -677,7 +677,10 @@ arenaScene?.addEventListener("pointerenter", (event) => {
 });
 
 arenaScene?.addEventListener("pointerdown", (event) => {
-  if (event.pointerType !== "mouse" || event.button !== 0) {
+  const isMousePrimaryClick = event.pointerType === "mouse" && event.button === 0;
+  const isDirectTouchThrow = event.pointerType === "touch" || event.pointerType === "pen";
+
+  if (!isMousePrimaryClick && !isDirectTouchThrow) {
     return;
   }
 
