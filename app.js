@@ -21,6 +21,7 @@ const gamePhoto = document.getElementById("gamePhoto");
 const gameSessionLabel = document.getElementById("gameSessionLabel");
 const gameFileName = document.getElementById("gameFileName");
 const arenaScene = document.querySelector(".arena-scene");
+const photoMonolithFrame = document.querySelector(".photo-monolith-frame");
 const potatoCursor = document.getElementById("potatoCursor");
 const potatoProjectiles = document.getElementById("potatoProjectiles");
 
@@ -30,6 +31,8 @@ const POTATO_THROW_MS = 860;
 const POTATO_RESPAWN_MS = 110;
 const POTATO_CURSOR_RELOAD_MS = 95;
 const POTATO_CURSOR_BASE_ROTATION = -18;
+const POTATO_IMPACT_SAMPLES = 96;
+const POTATO_IMPACT_RADIUS = 26;
 
 let helloIndex = 0;
 let activePhoto = null;
@@ -139,6 +142,115 @@ const clearThrownPotatoes = () => {
   }
 };
 
+const getArenaRelativeRect = (element) => {
+  if (!arenaScene || !element) {
+    return null;
+  }
+
+  const arenaRect = arenaScene.getBoundingClientRect();
+  const elementRect = element.getBoundingClientRect();
+
+  return {
+    left: elementRect.left - arenaRect.left,
+    right: elementRect.right - arenaRect.left,
+    top: elementRect.top - arenaRect.top,
+    bottom: elementRect.bottom - arenaRect.top,
+    width: elementRect.width,
+    height: elementRect.height,
+  };
+};
+
+const getProjectilePositionAtProgress = (
+  progress,
+  sceneX,
+  sceneY,
+  throwX,
+  initialVelocityY,
+  gravity,
+) => {
+  const x = sceneX + lerp(0, throwX, easeOutQuad(progress));
+  const y = sceneY + initialVelocityY * progress + 0.5 * gravity * progress * progress;
+
+  return { x, y };
+};
+
+const findImpactPoint = ({
+  sceneX,
+  sceneY,
+  throwX,
+  initialVelocityY,
+  gravity,
+  peakTime,
+}) => {
+  const targetRect = getArenaRelativeRect(photoMonolithFrame);
+  if (!targetRect) {
+    return null;
+  }
+
+  const paddedRect = {
+    left: targetRect.left - POTATO_IMPACT_RADIUS,
+    right: targetRect.right + POTATO_IMPACT_RADIUS,
+    top: targetRect.top - POTATO_IMPACT_RADIUS,
+    bottom: targetRect.bottom + POTATO_IMPACT_RADIUS,
+  };
+
+  const sampleStart = Math.max(peakTime, 0.08);
+
+  for (let index = 0; index <= POTATO_IMPACT_SAMPLES; index += 1) {
+    const progress = lerp(sampleStart, 1, index / POTATO_IMPACT_SAMPLES);
+    const point = getProjectilePositionAtProgress(
+      progress,
+      sceneX,
+      sceneY,
+      throwX,
+      initialVelocityY,
+      gravity,
+    );
+
+    if (
+      point.x >= paddedRect.left &&
+      point.x <= paddedRect.right &&
+      point.y >= paddedRect.top &&
+      point.y <= paddedRect.bottom
+    ) {
+      return {
+        progress,
+        x: point.x,
+        y: point.y,
+        targetRect,
+      };
+    }
+  }
+
+  return null;
+};
+
+const spawnPotatoImpact = (impactPoint) => {
+  if (!potatoProjectiles) {
+    return;
+  }
+
+  const impact = document.createElement("div");
+  impact.className = "potato-impact";
+  impact.style.left = `${impactPoint.x}px`;
+  impact.style.top = `${impactPoint.y}px`;
+  impact.innerHTML = `
+    <span class="potato-impact-dust"></span>
+    <span class="potato-impact-shard shard-a"></span>
+    <span class="potato-impact-shard shard-b"></span>
+    <span class="potato-impact-shard shard-c"></span>
+    <span class="potato-impact-shard shard-d"></span>
+    <span class="potato-impact-shard shard-e"></span>
+    <span class="potato-impact-shard shard-f"></span>
+  `;
+
+  potatoProjectiles.appendChild(impact);
+
+  window.setTimeout(() => {
+    impact.remove();
+  }, 520);
+};
+
 const playPotatoCursorReload = () => {
   if (!potatoCursor) {
     return;
@@ -215,6 +327,14 @@ const throwPotato = (clientX, clientY) => {
   const throwArcY = Math.min(-Math.round(arcLift), throwY - arcOvershoot);
   const gravity = (2 * (throwArcY - throwY * peakTime)) / (peakTime * peakTime - peakTime);
   const initialVelocityY = throwY - 0.5 * gravity;
+  const impactPoint = findImpactPoint({
+    sceneX,
+    sceneY,
+    throwX,
+    initialVelocityY,
+    gravity,
+    peakTime,
+  });
   const spinDirection = throwX === 0
     ? (potatoCursorRotation >= POTATO_CURSOR_BASE_ROTATION ? 1 : -1)
     : (throwX >= 0 ? 1 : -1);
@@ -259,6 +379,12 @@ const throwPotato = (clientX, clientY) => {
     projectile.style.transform =
       `translate(-42%, -40%) translate(${x}px, ${y}px) rotate(${rotation}deg) scale(${scale})`;
     projectile.style.opacity = `${opacity}`;
+
+    if (impactPoint && progress >= impactPoint.progress) {
+      projectile.remove();
+      spawnPotatoImpact(impactPoint);
+      return;
+    }
 
     if (progress < 1) {
       window.requestAnimationFrame(animateProjectile);

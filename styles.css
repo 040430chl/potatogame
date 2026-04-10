@@ -610,6 +610,79 @@ input {
   filter: drop-shadow(0 14px 18px rgba(15, 23, 42, 0.22));
 }
 
+.potato-impact {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 132px;
+  height: 132px;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  z-index: 6;
+}
+
+.potato-impact-dust,
+.potato-impact-shard {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  pointer-events: none;
+}
+
+.potato-impact-dust {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(218, 195, 138, 0.34) 0%, rgba(205, 171, 102, 0.14) 42%, rgba(205, 171, 102, 0) 74%);
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.6);
+  filter: blur(0.6px);
+  animation: potato-impact-dust 260ms ease-out forwards;
+}
+
+.potato-impact-shard {
+  width: 72px;
+  height: 72px;
+  margin-left: -36px;
+  margin-top: -36px;
+  background-image: url("./resources/common_potato.png");
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  filter: drop-shadow(0 10px 14px rgba(15, 23, 42, 0.22));
+  transform-origin: 50% 50%;
+  opacity: 0;
+}
+
+.potato-impact-shard.shard-a {
+  clip-path: polygon(12% 28%, 48% 6%, 54% 46%, 26% 60%);
+  animation: potato-impact-shard-a 420ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.potato-impact-shard.shard-b {
+  clip-path: polygon(48% 8%, 84% 22%, 72% 50%, 54% 46%);
+  animation: potato-impact-shard-b 420ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.potato-impact-shard.shard-c {
+  clip-path: polygon(26% 60%, 54% 46%, 48% 88%, 12% 76%);
+  animation: potato-impact-shard-c 460ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.potato-impact-shard.shard-d {
+  clip-path: polygon(54% 46%, 72% 50%, 88% 82%, 48% 88%);
+  animation: potato-impact-shard-d 460ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.potato-impact-shard.shard-e {
+  clip-path: polygon(30% 22%, 54% 46%, 34% 50%);
+  animation: potato-impact-shard-e 340ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.potato-impact-shard.shard-f {
+  clip-path: polygon(54% 46%, 74% 38%, 66% 62%);
+  animation: potato-impact-shard-f 340ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
 @keyframes potato-cursor-reload {
   0% {
     transform: translate(calc(-42% + var(--potato-reload-x)), calc(-40% + var(--potato-reload-y))) rotate(calc(var(--potato-cursor-rotation) + var(--potato-reload-rotation))) scale(0.86);
@@ -619,6 +692,119 @@ input {
   100% {
     transform: translate(-42%, -40%) rotate(var(--potato-cursor-rotation)) scale(1);
     opacity: 1;
+  }
+}
+
+@keyframes potato-impact-dust {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.6);
+  }
+
+  35% {
+    opacity: 0.42;
+    transform: translate(-50%, -50%) scale(1);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.38);
+  }
+}
+
+@keyframes potato-impact-shard-a {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) rotate(-8deg) scale(1);
+  }
+
+  18% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(26px, -24px) rotate(68deg) scale(0.62);
+  }
+}
+
+@keyframes potato-impact-shard-b {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) rotate(6deg) scale(1);
+  }
+
+  18% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(-28px, -18px) rotate(-76deg) scale(0.58);
+  }
+}
+
+@keyframes potato-impact-shard-c {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) rotate(-4deg) scale(1);
+  }
+
+  18% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(18px, 22px) rotate(84deg) scale(0.56);
+  }
+}
+
+@keyframes potato-impact-shard-d {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) rotate(4deg) scale(1);
+  }
+
+  18% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(-20px, 26px) rotate(-88deg) scale(0.52);
+  }
+}
+
+@keyframes potato-impact-shard-e {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) rotate(0deg) scale(1);
+  }
+
+  18% {
+    opacity: 0.95;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(2px, -34px) rotate(112deg) scale(0.42);
+  }
+}
+
+@keyframes potato-impact-shard-f {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) rotate(0deg) scale(1);
+  }
+
+  18% {
+    opacity: 0.95;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(30px, 2px) rotate(-102deg) scale(0.44);
   }
 }
 
