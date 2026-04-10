@@ -7,6 +7,7 @@ const screens = {
 const helloWords = Array.from(document.querySelectorAll(".hello-word"));
 const startButton = document.getElementById("startButton");
 const launchButton = document.getElementById("launchButton");
+const clipboardButton = document.getElementById("clipboardButton");
 const photoInput = document.getElementById("photoInput");
 const dropzone = document.getElementById("dropzone");
 const uploadIdle = document.getElementById("uploadIdle");
@@ -21,7 +22,9 @@ const gamePhoto = document.getElementById("gamePhoto");
 const gameSessionLabel = document.getElementById("gameSessionLabel");
 const gameFileName = document.getElementById("gameFileName");
 const arenaScene = document.querySelector(".arena-scene");
+const photoMonolith = document.querySelector(".photo-monolith");
 const photoMonolithFrame = document.querySelector(".photo-monolith-frame");
+const photoGroundShadow = document.getElementById("photoGroundShadow");
 const potatoCursor = document.getElementById("potatoCursor");
 const potatoProjectiles = document.getElementById("potatoProjectiles");
 
@@ -32,7 +35,9 @@ const POTATO_RESPAWN_MS = 110;
 const POTATO_CURSOR_RELOAD_MS = 95;
 const POTATO_CURSOR_BASE_ROTATION = -18;
 const POTATO_IMPACT_SAMPLES = 96;
-const POTATO_IMPACT_RADIUS = 26;
+const POTATO_IMPACT_RADIUS_Y = 24;
+const POTATO_IMPACT_RADIUS_LEFT = 29;
+const POTATO_IMPACT_RADIUS_RIGHT = 14;
 
 let helloIndex = 0;
 let activePhoto = null;
@@ -40,6 +45,7 @@ let noticeHideTimer = null;
 let potatoRespawnTimer = null;
 let potatoCursorReloadTimer = null;
 let potatoCursorRotationFrame = null;
+let photoHitTimer = null;
 let isPotatoReady = true;
 let isPointerOverArena = false;
 let potatoReloadDirection = 1;
@@ -142,6 +148,34 @@ const clearThrownPotatoes = () => {
   }
 };
 
+const triggerPhotoHitEffect = () => {
+  if (!photoMonolith || !photoMonolithFrame || !photoGroundShadow) {
+    return;
+  }
+
+  if (photoHitTimer) {
+    window.clearTimeout(photoHitTimer);
+    photoHitTimer = null;
+  }
+
+  photoMonolith.classList.remove("is-hit");
+  photoMonolithFrame.classList.remove("is-hit");
+  photoGroundShadow.classList.remove("is-hit");
+
+  void photoMonolithFrame.offsetWidth;
+
+  photoMonolith.classList.add("is-hit");
+  photoMonolithFrame.classList.add("is-hit");
+  photoGroundShadow.classList.add("is-hit");
+
+  photoHitTimer = window.setTimeout(() => {
+    photoMonolith.classList.remove("is-hit");
+    photoMonolithFrame.classList.remove("is-hit");
+    photoGroundShadow.classList.remove("is-hit");
+    photoHitTimer = null;
+  }, 420);
+};
+
 const getArenaRelativeRect = (element) => {
   if (!arenaScene || !element) {
     return null;
@@ -188,10 +222,10 @@ const findImpactPoint = ({
   }
 
   const paddedRect = {
-    left: targetRect.left - POTATO_IMPACT_RADIUS,
-    right: targetRect.right + POTATO_IMPACT_RADIUS,
-    top: targetRect.top - POTATO_IMPACT_RADIUS,
-    bottom: targetRect.bottom + POTATO_IMPACT_RADIUS,
+    left: targetRect.left - POTATO_IMPACT_RADIUS_LEFT,
+    right: targetRect.right + POTATO_IMPACT_RADIUS_RIGHT,
+    top: targetRect.top - POTATO_IMPACT_RADIUS_Y,
+    bottom: targetRect.bottom + POTATO_IMPACT_RADIUS_Y,
   };
 
   const sampleStart = Math.max(peakTime, 0.08);
@@ -383,6 +417,7 @@ const throwPotato = (clientX, clientY) => {
     if (impactPoint && progress >= impactPoint.progress) {
       projectile.remove();
       spawnPotatoImpact(impactPoint);
+      triggerPhotoHitEffect();
       return;
     }
 
@@ -433,6 +468,26 @@ const rotateHello = () => {
 
 const updateLaunchState = () => {
   launchButton.disabled = !activePhoto;
+};
+
+const readClipboardImageFile = async () => {
+  if (!navigator.clipboard?.read) {
+    throw new Error("Clipboard read unavailable");
+  }
+
+  const clipboardItems = await navigator.clipboard.read();
+  for (const clipboardItem of clipboardItems) {
+    const imageType = clipboardItem.types.find((type) => type.startsWith("image/"));
+    if (!imageType) {
+      continue;
+    }
+
+    const blob = await clipboardItem.getType(imageType);
+    const extension = imageType.split("/")[1] || "png";
+    return new File([blob], `clipboard-image.${extension}`, { type: imageType });
+  }
+
+  throw new Error("No image in clipboard");
 };
 
 const setNoticeOpen = (isOpen) => {
@@ -502,6 +557,15 @@ photoInput.addEventListener("change", (event) => {
   applyFile(file);
 });
 
+clipboardButton?.addEventListener("click", async () => {
+  try {
+    const file = await readClipboardImageFile();
+    applyFile(file);
+  } catch (error) {
+    window.alert("클립보드 이미지 읽기를 지원하지 않거나 현재 클립보드에 이미지가 없습니다.\n이미지를 복사한 뒤 Ctrl+V로도 붙여넣을 수 있습니다.");
+  }
+});
+
 ["dragenter", "dragover"].forEach((eventName) => {
   dropzone.addEventListener(eventName, (event) => {
     event.preventDefault();
@@ -518,6 +582,19 @@ photoInput.addEventListener("change", (event) => {
 
 dropzone.addEventListener("drop", (event) => {
   const [file] = event.dataTransfer?.files ?? [];
+  applyFile(file);
+});
+
+window.addEventListener("paste", (event) => {
+  const clipboardItems = Array.from(event.clipboardData?.items ?? []);
+  const imageItem = clipboardItems.find((item) => item.type.startsWith("image/"));
+  const file = imageItem?.getAsFile();
+
+  if (!file) {
+    return;
+  }
+
+  event.preventDefault();
   applyFile(file);
 });
 

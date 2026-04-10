@@ -44,7 +44,7 @@
           <p class="eyebrow">Step 1</p>
           <h2>오늘의 타겟을 올려주세요.</h2>
           <p>
-            스트레스 받는 순간을 가볍게 전환할 수 있도록,
+            스트레스를 받는 순간을 가볍게 전환할 수 있도록
             인물 사진을 불러온 뒤 바로 미니게임으로 이어지게 설계합니다.
           </p>
         </div>
@@ -59,6 +59,7 @@
               </div>
               <strong>사진 업로드</strong>
               <span>클릭해서 이미지를 선택하거나 파일을 끌어오세요.</span>
+              <span class="upload-hint">Ctrl+V로 클립보드 이미지를 붙여넣을 수도 있습니다.</span>
             </div>
             <div class="upload-preview" id="uploadPreview" hidden>
               <img id="previewImage" alt="업로드한 인물 사진 미리보기">
@@ -74,7 +75,10 @@
               <span>세션 이름</span>
               <input id="sessionName" type="text" placeholder="예: 오후 3시 리셋">
             </label>
-            <button class="secondary-button" id="launchButton" type="button">게임 시작</button>
+            <div class="action-stack">
+              <button class="ghost-button action-button" id="clipboardButton" type="button">클립보드 사진 가져오기</button>
+              <button class="secondary-button action-button" id="launchButton" type="button">게임 시작</button>
+            </div>
           </div>
         </div>
       </section>
@@ -100,6 +104,7 @@
             <div class="arena-ring arena-ring-small" aria-hidden="true"></div>
             <div class="arena-shadow" aria-hidden="true"></div>
             <div class="arena-pedestal" aria-hidden="true"></div>
+            <div class="photo-ground-shadow" id="photoGroundShadow" aria-hidden="true"></div>
 
             <div class="photo-monolith">
               <div class="photo-monolith-frame">
@@ -127,10 +132,10 @@
         <div class="notice-copy">
           <p>
             본 프로그램은 일시적인 심리 환기와 가벼운 웃음을 목적으로 설계된 디지털 감자 투척 인터페이스입니다.
-            사용자는 업로드하는 이미지의 소유권, 초상권, 명예, 체면, 그리고 월요일 아침의 감정적 파장을 스스로 확인해야 합니다.
+            사용자는 업로드하는 이미지의 소유권, 초상권, 명예, 체면, 그리고 적발 시의 감정적 파장을 스스로 확인해야 합니다.
           </p>
           <p>
-            특히 실제 상사, 동료, 거래처 담당자, 임원, 또는 회식 자리에서 고기 굽기만 시키던 특정 인물의 사진을 사용할 경우,
+            특히 실제 상사, 동료, 거래처 담당자, 임원, 또는 회식 자리에서 과한 음주를 강요하던 특정 인물의 사진을 사용할 경우,
             그로 인해 발생하는 모든 민망함과 후폭풍에 대해 본 제작자는 책임을 부담하지 않습니다.
           </p>
           <p>
