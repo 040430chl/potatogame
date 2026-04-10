@@ -22,10 +22,12 @@ const gamePhoto = document.getElementById("gamePhoto");
 const gameSessionLabel = document.getElementById("gameSessionLabel");
 const gameFileName = document.getElementById("gameFileName");
 const arenaScene = document.querySelector(".arena-scene");
+const welcomeTitle = document.querySelector(".welcome-panel h1");
 const photoMonolith = document.querySelector(".photo-monolith");
 const photoMonolithFrame = document.querySelector(".photo-monolith-frame");
 const photoGroundShadow = document.getElementById("photoGroundShadow");
 const potatoCursor = document.getElementById("potatoCursor");
+const potatoProjectilesBack = document.getElementById("potatoProjectilesBack");
 const potatoProjectiles = document.getElementById("potatoProjectiles");
 
 const NOTICE_ANIMATION_MS = 320;
@@ -34,10 +36,47 @@ const POTATO_THROW_MS = 860;
 const POTATO_RESPAWN_MS = 110;
 const POTATO_CURSOR_RELOAD_MS = 95;
 const POTATO_CURSOR_BASE_ROTATION = -18;
-const POTATO_IMPACT_SAMPLES = 96;
-const POTATO_IMPACT_RADIUS_Y = 24;
-const POTATO_IMPACT_RADIUS_LEFT = 29;
-const POTATO_IMPACT_RADIUS_RIGHT = 14;
+const POTATO_IMPACT_PROGRESS = 0.4;
+const PHOTO_HITBOX_INSET_X = 8;
+const PHOTO_HITBOX_INSET_Y = 10;
+const POTATO_HIT_POLYGON = [
+  [0.06, 0.53],
+  [0.09, 0.4],
+  [0.16, 0.31],
+  [0.25, 0.24],
+  [0.37, 0.2],
+  [0.5, 0.18],
+  [0.63, 0.2],
+  [0.75, 0.23],
+  [0.84, 0.28],
+  [0.91, 0.37],
+  [0.94, 0.5],
+  [0.92, 0.62],
+  [0.86, 0.71],
+  [0.77, 0.77],
+  [0.65, 0.81],
+  [0.52, 0.83],
+  [0.39, 0.82],
+  [0.27, 0.79],
+  [0.17, 0.73],
+  [0.1, 0.64],
+];
+const DEBUG_TARGET_DATA_URI = `data:image/svg+xml;utf8,${encodeURIComponent(`
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 740 1000" preserveAspectRatio="none">
+    <rect width="740" height="1000" fill="#d6dce8"/>
+  </svg>
+`)}`;
+const POTATO_POLYGON_RAY_COUNT = 120;
+const POTATO_ALPHA_THRESHOLD = 28;
+const DEFAULT_POTATO_REFERENCE = {
+  points: POTATO_HIT_POLYGON.map(([x, y]) => [x * 100, y * 100]),
+  viewBox: {
+    minX: 0,
+    minY: 0,
+    width: 100,
+    height: 100,
+  },
+};
 
 let helloIndex = 0;
 let activePhoto = null;
@@ -48,6 +87,12 @@ let potatoCursorRotationFrame = null;
 let photoHitTimer = null;
 let isPotatoReady = true;
 let isPointerOverArena = false;
+let isCursorPointerActive = false;
+let isDebugMode = false;
+let debugHitboxFrame = null;
+let lastThrowState = null;
+let potatoHitPolygon = POTATO_HIT_POLYGON;
+let potatoHitPolygonReference = DEFAULT_POTATO_REFERENCE;
 let potatoReloadDirection = 1;
 let potatoCursorRotation = POTATO_CURSOR_BASE_ROTATION;
 let potatoCursorRotationTarget = POTATO_CURSOR_BASE_ROTATION;
@@ -60,6 +105,101 @@ const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 const lerp = (start, end, amount) => start + (end - start) * amount;
 const easeInQuad = (amount) => amount * amount;
 const easeOutQuad = (amount) => 1 - (1 - amount) ** 2;
+
+const buildPotatoHitPolygonFromSprite = (image) => {
+  if (!image?.naturalWidth || !image?.naturalHeight) {
+    return null;
+  }
+
+  const canvas = document.createElement("canvas");
+  canvas.width = image.naturalWidth;
+  canvas.height = image.naturalHeight;
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+
+  if (!context) {
+    return null;
+  }
+
+  context.drawImage(image, 0, 0);
+  const { data, width, height } = context.getImageData(0, 0, canvas.width, canvas.height);
+  const centerX = width * 0.5;
+  const centerY = height * 0.5;
+  const maxRadius = Math.hypot(width, height) * 0.5;
+  const normalizedPolygon = [];
+  const sourcePoints = [];
+
+  for (let index = 0; index < POTATO_POLYGON_RAY_COUNT; index += 1) {
+    const angle = (-Math.PI * 0.5) + ((Math.PI * 2) * index) / POTATO_POLYGON_RAY_COUNT;
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+    let hitPoint = null;
+
+    for (let radius = maxRadius; radius >= 0; radius -= 1) {
+      const sampleX = Math.round(centerX + cos * radius);
+      const sampleY = Math.round(centerY + sin * radius);
+
+      if (sampleX < 0 || sampleX >= width || sampleY < 0 || sampleY >= height) {
+        continue;
+      }
+
+      const alpha = data[(sampleY * width + sampleX) * 4 + 3];
+      if (alpha < POTATO_ALPHA_THRESHOLD) {
+        continue;
+      }
+
+      hitPoint = [sampleX, sampleY];
+      break;
+    }
+
+    if (hitPoint) {
+      sourcePoints.push(hitPoint);
+      normalizedPolygon.push([hitPoint[0] / width, hitPoint[1] / height]);
+    }
+  }
+
+  if (normalizedPolygon.length < 8 || sourcePoints.length < 8) {
+    return null;
+  }
+
+  const pointXs = sourcePoints.map(([pointX]) => pointX);
+  const pointYs = sourcePoints.map(([, pointY]) => pointY);
+  const minX = Math.min(...pointXs);
+  const maxX = Math.max(...pointXs);
+  const minY = Math.min(...pointYs);
+  const maxY = Math.max(...pointYs);
+
+  return {
+    normalizedPolygon,
+    reference: {
+      points: sourcePoints,
+      viewBox: {
+        minX,
+        minY,
+        width: Math.max(1, maxX - minX),
+        height: Math.max(1, maxY - minY),
+      },
+    },
+  };
+};
+
+const refreshPotatoHitPolygon = () => {
+  if (!potatoCursor?.complete || !potatoCursor.naturalWidth || !potatoCursor.naturalHeight) {
+    potatoHitPolygon = POTATO_HIT_POLYGON;
+    potatoHitPolygonReference = DEFAULT_POTATO_REFERENCE;
+    return;
+  }
+
+  const spritePolygon = buildPotatoHitPolygonFromSprite(potatoCursor);
+
+  if (!spritePolygon) {
+    potatoHitPolygon = POTATO_HIT_POLYGON;
+    potatoHitPolygonReference = DEFAULT_POTATO_REFERENCE;
+    return;
+  }
+
+  potatoHitPolygon = spritePolygon.normalizedPolygon;
+  potatoHitPolygonReference = spritePolygon.reference;
+};
 const setPotatoCursorRotation = (rotation = potatoCursorRotation) => {
   if (!potatoCursor) {
     return;
@@ -134,18 +274,176 @@ const setPotatoCursorVisible = (isVisible) => {
 
   potatoCursor.classList.toggle(
     "is-visible",
-    isVisible && isGameScreenActive() && isPotatoReady && isPointerOverArena,
+    isVisible && isGameScreenActive() && isPotatoReady && isPointerOverArena && isCursorPointerActive,
   );
 };
 
 const clearThrownPotatoes = () => {
-  if (!potatoProjectiles) {
+  if (!potatoProjectiles || !potatoProjectilesBack) {
     return;
   }
 
   while (potatoProjectiles.firstChild) {
     potatoProjectiles.firstChild.remove();
   }
+
+  while (potatoProjectilesBack.firstChild) {
+    potatoProjectilesBack.firstChild.remove();
+  }
+};
+
+const debugHitboxOverlay = (() => {
+  if (!arenaScene) {
+    return null;
+  }
+
+  const overlay = document.createElement("div");
+  overlay.className = "debug-hitbox-overlay";
+  overlay.hidden = true;
+  arenaScene.appendChild(overlay);
+  return overlay;
+})();
+
+const debugPotatoOverlay = (() => {
+  if (!arenaScene) {
+    return null;
+  }
+
+  const overlay = document.createElement("div");
+  overlay.className = "debug-potato-overlay";
+  overlay.innerHTML = `
+    <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+      <polygon></polygon>
+    </svg>
+  `;
+  overlay.hidden = true;
+  arenaScene.appendChild(overlay);
+  return overlay;
+})();
+
+const debugPotatoReference = (() => {
+  if (!arenaScene) {
+    return null;
+  }
+
+  const overlay = document.createElement("div");
+  overlay.className = "debug-potato-reference";
+  overlay.innerHTML = `
+    <span class="debug-reference-label">Sprite Outline</span>
+    <svg viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+      <polygon></polygon>
+    </svg>
+  `;
+  overlay.hidden = true;
+  arenaScene.appendChild(overlay);
+  return overlay;
+})();
+
+const stopDebugHitboxTracking = () => {
+  if (!debugHitboxFrame) {
+    return;
+  }
+
+  window.cancelAnimationFrame(debugHitboxFrame);
+  debugHitboxFrame = null;
+};
+
+const updateDebugHitboxOverlay = () => {
+  if (!debugHitboxOverlay || !debugPotatoOverlay || !debugPotatoReference || !photoMonolithFrame || !isDebugMode || !isGameScreenActive()) {
+    if (debugHitboxOverlay) {
+      debugHitboxOverlay.hidden = true;
+    }
+    if (debugPotatoOverlay) {
+      debugPotatoOverlay.hidden = true;
+    }
+    if (debugPotatoReference) {
+      debugPotatoReference.hidden = true;
+    }
+    return;
+  }
+
+  const targetRect = getPhotoHitRect();
+  if (!targetRect) {
+    debugHitboxOverlay.hidden = true;
+    debugPotatoOverlay.hidden = true;
+    return;
+  }
+
+  debugHitboxOverlay.hidden = false;
+  debugHitboxOverlay.style.left = `${targetRect.left}px`;
+  debugHitboxOverlay.style.top = `${targetRect.top}px`;
+  debugHitboxOverlay.style.width = `${targetRect.width}px`;
+  debugHitboxOverlay.style.height = `${targetRect.height}px`;
+
+  debugPotatoReference.hidden = false;
+  const referenceSvg = debugPotatoReference.querySelector("svg");
+  const referencePolygon = debugPotatoReference.querySelector("polygon");
+  if (referenceSvg) {
+    const {
+      minX,
+      minY,
+      width,
+      height,
+    } = potatoHitPolygonReference.viewBox;
+    referenceSvg.setAttribute("viewBox", `${minX} ${minY} ${width} ${height}`);
+    debugPotatoReference.style.setProperty("--debug-reference-aspect", `${width} / ${height}`);
+  }
+  if (referencePolygon) {
+    referencePolygon.setAttribute(
+      "points",
+      potatoHitPolygonReference.points.map(([x, y]) => `${x},${y}`).join(" "),
+    );
+  }
+
+  if (!lastThrowState) {
+    debugPotatoOverlay.hidden = true;
+    return;
+  }
+
+  const projectileRect = getProjectileHitRectAtProgress(
+    POTATO_IMPACT_PROGRESS,
+    lastThrowState.sceneX,
+    lastThrowState.sceneY,
+    lastThrowState.throwX,
+    lastThrowState.initialVelocityY,
+    lastThrowState.gravity,
+    lastThrowState.rotationStart,
+    lastThrowState.rotationTravel,
+  );
+
+  debugPotatoOverlay.hidden = false;
+  debugPotatoOverlay.style.left = `${projectileRect.x}px`;
+  debugPotatoOverlay.style.top = `${projectileRect.y}px`;
+  debugPotatoOverlay.style.width = `${projectileRect.width}px`;
+  debugPotatoOverlay.style.height = `${projectileRect.height}px`;
+  const polygon = debugPotatoOverlay.querySelector("polygon");
+  if (polygon) {
+    polygon.setAttribute(
+      "points",
+      projectileRect.points
+        .map((point) => `${((point.x - projectileRect.x) / projectileRect.width) * 100},${((point.y - projectileRect.y) / projectileRect.height) * 100}`)
+        .join(" "),
+    );
+  }
+};
+
+const trackDebugHitboxOverlay = () => {
+  updateDebugHitboxOverlay();
+
+  if (!isDebugMode || !isGameScreenActive()) {
+    debugHitboxFrame = null;
+    return;
+  }
+
+  debugHitboxFrame = window.requestAnimationFrame(trackDebugHitboxOverlay);
+};
+
+const ensureDebugHitboxTracking = () => {
+  if (debugHitboxFrame || !isDebugMode || !isGameScreenActive()) {
+    return;
+  }
+
+  debugHitboxFrame = window.requestAnimationFrame(trackDebugHitboxOverlay);
 };
 
 const triggerPhotoHitEffect = () => {
@@ -194,6 +492,22 @@ const getArenaRelativeRect = (element) => {
   };
 };
 
+const getPhotoHitRect = () => {
+  const targetRect = getArenaRelativeRect(photoMonolithFrame);
+  if (!targetRect) {
+    return null;
+  }
+
+  return {
+    left: targetRect.left + PHOTO_HITBOX_INSET_X,
+    right: targetRect.right - PHOTO_HITBOX_INSET_X,
+    top: targetRect.top + PHOTO_HITBOX_INSET_Y,
+    bottom: targetRect.bottom - PHOTO_HITBOX_INSET_Y,
+    width: Math.max(0, targetRect.width - PHOTO_HITBOX_INSET_X * 2),
+    height: Math.max(0, targetRect.height - PHOTO_HITBOX_INSET_Y * 2),
+  };
+};
+
 const getProjectilePositionAtProgress = (
   progress,
   sceneX,
@@ -208,55 +522,262 @@ const getProjectilePositionAtProgress = (
   return { x, y };
 };
 
-const findImpactPoint = ({
+const getProjectileRotationAtProgress = (progress, rotationStart, rotationTravel) => {
+  const rotationProgress = 1 - (1 - progress) ** 1.18;
+  return rotationStart + rotationTravel * rotationProgress;
+};
+
+const getProjectileScaleAtProgress = (progress) => lerp(1, 0.18, easeOutQuad(progress));
+
+const rotatePoint = (pointX, pointY, originX, originY, angleRadians) => {
+  const deltaX = pointX - originX;
+  const deltaY = pointY - originY;
+  const cos = Math.cos(angleRadians);
+  const sin = Math.sin(angleRadians);
+
+  return {
+    x: originX + deltaX * cos - deltaY * sin,
+    y: originY + deltaX * sin + deltaY * cos,
+  };
+};
+
+const pointInRect = (point, rect) =>
+  point.x >= rect.left
+  && point.x <= rect.right
+  && point.y >= rect.top
+  && point.y <= rect.bottom;
+
+const pointInPolygon = (point, polygon) => {
+  let isInside = false;
+
+  for (let index = 0, previous = polygon.length - 1; index < polygon.length; previous = index, index += 1) {
+    const currentPoint = polygon[index];
+    const previousPoint = polygon[previous];
+    const intersects =
+      ((currentPoint.y > point.y) !== (previousPoint.y > point.y))
+      && (
+        point.x
+        < ((previousPoint.x - currentPoint.x) * (point.y - currentPoint.y)) / ((previousPoint.y - currentPoint.y) || 0.00001)
+        + currentPoint.x
+      );
+
+    if (intersects) {
+      isInside = !isInside;
+    }
+  }
+
+  return isInside;
+};
+
+const lineSegmentsIntersect = (startA, endA, startB, endB) => {
+  const cross = (pointA, pointB, pointC) =>
+    (pointB.x - pointA.x) * (pointC.y - pointA.y) - (pointB.y - pointA.y) * (pointC.x - pointA.x);
+  const onSegment = (pointA, pointB, pointC) =>
+    Math.min(pointA.x, pointB.x) <= pointC.x
+    && pointC.x <= Math.max(pointA.x, pointB.x)
+    && Math.min(pointA.y, pointB.y) <= pointC.y
+    && pointC.y <= Math.max(pointA.y, pointB.y);
+
+  const direction1 = cross(startA, endA, startB);
+  const direction2 = cross(startA, endA, endB);
+  const direction3 = cross(startB, endB, startA);
+  const direction4 = cross(startB, endB, endA);
+
+  if (((direction1 > 0 && direction2 < 0) || (direction1 < 0 && direction2 > 0))
+    && ((direction3 > 0 && direction4 < 0) || (direction3 < 0 && direction4 > 0))) {
+    return true;
+  }
+
+  if (direction1 === 0 && onSegment(startA, endA, startB)) return true;
+  if (direction2 === 0 && onSegment(startA, endA, endB)) return true;
+  if (direction3 === 0 && onSegment(startB, endB, startA)) return true;
+  if (direction4 === 0 && onSegment(startB, endB, endA)) return true;
+
+  return false;
+};
+
+const polygonIntersectsRect = (polygon, rect) => {
+  if (polygon.some((point) => pointInRect(point, rect))) {
+    return true;
+  }
+
+  const rectPoints = [
+    { x: rect.left, y: rect.top },
+    { x: rect.right, y: rect.top },
+    { x: rect.right, y: rect.bottom },
+    { x: rect.left, y: rect.bottom },
+  ];
+
+  if (rectPoints.some((point) => pointInPolygon(point, polygon))) {
+    return true;
+  }
+
+  const rectEdges = rectPoints.map((point, index) => [point, rectPoints[(index + 1) % rectPoints.length]]);
+
+  for (let index = 0; index < polygon.length; index += 1) {
+    const edgeStart = polygon[index];
+    const edgeEnd = polygon[(index + 1) % polygon.length];
+
+    if (rectEdges.some(([rectStart, rectEnd]) => lineSegmentsIntersect(edgeStart, edgeEnd, rectStart, rectEnd))) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
+const getPotatoSpriteDimensions = () => {
+  const baseWidth = potatoCursor?.getBoundingClientRect().width
+    || parseFloat(window.getComputedStyle(arenaScene).getPropertyValue("--potato-cursor-size"))
+    || 132;
+  const aspectRatio = potatoCursor?.naturalWidth && potatoCursor?.naturalHeight
+    ? potatoCursor.naturalHeight / potatoCursor.naturalWidth
+    : 0.78;
+
+  return { baseWidth, aspectRatio };
+};
+
+const getProjectileHitRectAtProgress = (
+  progress,
   sceneX,
   sceneY,
   throwX,
   initialVelocityY,
   gravity,
-  peakTime,
+  rotationStart,
+  rotationTravel,
+) => {
+  const point = getProjectilePositionAtProgress(
+    progress,
+    sceneX,
+    sceneY,
+    throwX,
+    initialVelocityY,
+    gravity,
+  );
+  const { baseWidth, aspectRatio } = getPotatoSpriteDimensions();
+  const scale = getProjectileScaleAtProgress(progress);
+  const width = baseWidth * scale;
+  const height = width * aspectRatio;
+  const x = point.x - width * 0.42;
+  const y = point.y - height * 0.4;
+  const rotation = getProjectileRotationAtProgress(progress, rotationStart, rotationTravel);
+  const rotationRadians = (rotation * Math.PI) / 180;
+  const originX = x + width * 0.5;
+  const originY = y + height * 0.55;
+  const points = potatoHitPolygon.map(([normalizedX, normalizedY]) =>
+    rotatePoint(
+      x + width * normalizedX,
+      y + height * normalizedY,
+      originX,
+      originY,
+      rotationRadians,
+    ));
+  const pointXs = points.map((polygonPoint) => polygonPoint.x);
+  const pointYs = points.map((polygonPoint) => polygonPoint.y);
+
+  return {
+    centerX: point.x,
+    centerY: point.y,
+    x: Math.min(...pointXs),
+    y: Math.min(...pointYs),
+    width: Math.max(...pointXs) - Math.min(...pointXs),
+    height: Math.max(...pointYs) - Math.min(...pointYs),
+    points,
+  };
+};
+
+const resolveImpactAtProgress = ({
+  progress,
+  sceneX,
+  sceneY,
+  throwX,
+  initialVelocityY,
+  gravity,
+  rotationStart,
+  rotationTravel,
 }) => {
-  const targetRect = getArenaRelativeRect(photoMonolithFrame);
+  const targetRect = getPhotoHitRect();
   if (!targetRect) {
     return null;
   }
 
-  const paddedRect = {
-    left: targetRect.left - POTATO_IMPACT_RADIUS_LEFT,
-    right: targetRect.right + POTATO_IMPACT_RADIUS_RIGHT,
-    top: targetRect.top - POTATO_IMPACT_RADIUS_Y,
-    bottom: targetRect.bottom + POTATO_IMPACT_RADIUS_Y,
-  };
+  const projectileRect = getProjectileHitRectAtProgress(
+    progress,
+    sceneX,
+    sceneY,
+    throwX,
+    initialVelocityY,
+    gravity,
+    rotationStart,
+    rotationTravel,
+  );
 
-  const sampleStart = Math.max(peakTime, 0.08);
-
-  for (let index = 0; index <= POTATO_IMPACT_SAMPLES; index += 1) {
-    const progress = lerp(sampleStart, 1, index / POTATO_IMPACT_SAMPLES);
-    const point = getProjectilePositionAtProgress(
-      progress,
-      sceneX,
-      sceneY,
-      throwX,
-      initialVelocityY,
-      gravity,
-    );
-
-    if (
-      point.x >= paddedRect.left &&
-      point.x <= paddedRect.right &&
-      point.y >= paddedRect.top &&
-      point.y <= paddedRect.bottom
-    ) {
-      return {
-        progress,
-        x: point.x,
-        y: point.y,
-        targetRect,
-      };
-    }
+  if (!polygonIntersectsRect(projectileRect.points, targetRect)) {
+    return null;
   }
 
-  return null;
+  return {
+    progress,
+    x: projectileRect.centerX,
+    y: projectileRect.centerY,
+  };
+};
+
+const getThrowState = (sceneX, sceneY, rect) => {
+  const horizontalPull = (0.5 - sceneX / rect.width) * Math.min(rect.width * 0.2, 128);
+  const verticalRatio = clamp(sceneY / rect.height, 0, 1);
+  const maxDownwardTravel = clamp(rect.height * 0.14, 84, 144);
+  const maxUpwardTravel = clamp(rect.height * 0.44, 280, 420);
+  const throwX = Math.round(horizontalPull);
+  const throwY = Math.round(lerp(maxDownwardTravel, -maxUpwardTravel, verticalRatio));
+  const peakTime = lerp(0.48, 0.35, verticalRatio);
+  const arcLift = clamp(rect.height * (0.16 + verticalRatio * 0.14), 110, 220);
+  const arcOvershoot = clamp(Math.abs(throwY) * lerp(0.2, 0.34, verticalRatio), 44, 132);
+  const throwArcY = Math.min(-Math.round(arcLift), throwY - arcOvershoot);
+  const gravity = (2 * (throwArcY - throwY * peakTime)) / (peakTime * peakTime - peakTime);
+  const initialVelocityY = throwY - 0.5 * gravity;
+  const spinDirection = throwX === 0
+    ? (potatoCursorRotation >= POTATO_CURSOR_BASE_ROTATION ? 1 : -1)
+    : (throwX >= 0 ? 1 : -1);
+
+  return {
+    sceneX,
+    sceneY,
+    throwX,
+    initialVelocityY,
+    gravity,
+    peakTime,
+    rotationStart: potatoCursorRotation,
+    rotationTravel: 188 * spinDirection,
+  };
+};
+
+const getProjectileVisualStateAtProgress = (progress, throwState) => {
+  const position = getProjectilePositionAtProgress(
+    progress,
+    throwState.sceneX,
+    throwState.sceneY,
+    throwState.throwX,
+    throwState.initialVelocityY,
+    throwState.gravity,
+  );
+  const rotation = getProjectileRotationAtProgress(
+    progress,
+    throwState.rotationStart,
+    throwState.rotationTravel,
+  );
+  const scale = getProjectileScaleAtProgress(progress);
+  const fadeProgress = clamp((progress - throwState.peakTime) / (1 - throwState.peakTime), 0, 1);
+  const opacity = lerp(0.98, 0, easeInQuad(fadeProgress));
+
+  return {
+    x: position.x - throwState.sceneX,
+    y: position.y - throwState.sceneY,
+    rotation,
+    scale,
+    opacity,
+  };
 };
 
 const spawnPotatoImpact = (impactPoint) => {
@@ -338,7 +859,7 @@ const syncPotatoCursor = (clientX = lastPointerPosition.x, clientY = lastPointer
 };
 
 const throwPotato = (clientX, clientY) => {
-  if (!arenaScene || !potatoProjectiles || !isGameScreenActive() || !isPotatoReady) {
+  if (!arenaScene || !potatoProjectiles || !potatoProjectilesBack || !isGameScreenActive() || !isPotatoReady) {
     return;
   }
 
@@ -348,32 +869,16 @@ const throwPotato = (clientX, clientY) => {
   }
 
   const { rect, sceneX, sceneY } = cursorState;
-  const horizontalPull = (0.5 - sceneX / rect.width) * Math.min(rect.width * 0.2, 128);
-  const verticalRatio = clamp(sceneY / rect.height, 0, 1);
-  const maxDownwardTravel = clamp(rect.height * 0.14, 84, 144);
-  const maxUpwardTravel = clamp(rect.height * 0.44, 280, 420);
-  const throwX = Math.round(horizontalPull);
-  const throwY = Math.round(lerp(maxDownwardTravel, -maxUpwardTravel, verticalRatio));
-  const peakTime = lerp(0.48, 0.35, verticalRatio);
-  const arcLift = clamp(rect.height * (0.16 + verticalRatio * 0.14), 110, 220);
-  const arcOvershoot = clamp(Math.abs(throwY) * lerp(0.2, 0.34, verticalRatio), 44, 132);
-  const throwArcX = Math.round(throwX * 0.38);
-  const throwArcY = Math.min(-Math.round(arcLift), throwY - arcOvershoot);
-  const gravity = (2 * (throwArcY - throwY * peakTime)) / (peakTime * peakTime - peakTime);
-  const initialVelocityY = throwY - 0.5 * gravity;
-  const impactPoint = findImpactPoint({
-    sceneX,
-    sceneY,
+  const throwState = getThrowState(sceneX, sceneY, rect);
+  const {
     throwX,
     initialVelocityY,
     gravity,
     peakTime,
-  });
-  const spinDirection = throwX === 0
-    ? (potatoCursorRotation >= POTATO_CURSOR_BASE_ROTATION ? 1 : -1)
-    : (throwX >= 0 ? 1 : -1);
-  const rotationStart = potatoCursorRotation;
-  const rotationTravel = 188 * spinDirection;
+    rotationStart,
+    rotationTravel,
+  } = throwState;
+  lastThrowState = throwState;
 
   isPotatoReady = false;
   potatoReloadDirection = throwX >= 0 ? -1 : 1;
@@ -395,6 +900,8 @@ const throwPotato = (clientX, clientY) => {
     `translate(-42%, -40%) translate(0px, 0px) rotate(${rotationStart}deg) scale(1)`;
 
   const throwStart = window.performance.now();
+  let hasMovedBehindPhoto = false;
+  let hasResolvedImpact = false;
 
   const animateProjectile = (now) => {
     if (!projectile.isConnected) {
@@ -402,23 +909,36 @@ const throwPotato = (clientX, clientY) => {
     }
 
     const progress = clamp((now - throwStart) / POTATO_THROW_MS, 0, 1);
-    const x = lerp(0, throwX, easeOutQuad(progress));
-    const y = initialVelocityY * progress + 0.5 * gravity * progress * progress;
-    const rotationProgress = 1 - (1 - progress) ** 1.18;
-    const rotation = rotationStart + rotationTravel * rotationProgress;
-    const scale = lerp(1, 0.18, easeOutQuad(progress));
-    const fadeProgress = clamp((progress - peakTime) / (1 - peakTime), 0, 1);
-    const opacity = lerp(0.98, 0, easeInQuad(fadeProgress));
+    const visualState = getProjectileVisualStateAtProgress(progress, throwState);
 
     projectile.style.transform =
-      `translate(-42%, -40%) translate(${x}px, ${y}px) rotate(${rotation}deg) scale(${scale})`;
-    projectile.style.opacity = `${opacity}`;
+      `translate(-42%, -40%) translate(${visualState.x}px, ${visualState.y}px) rotate(${visualState.rotation}deg) scale(${visualState.scale})`;
+    projectile.style.opacity = `${visualState.opacity}`;
 
-    if (impactPoint && progress >= impactPoint.progress) {
-      projectile.remove();
-      spawnPotatoImpact(impactPoint);
-      triggerPhotoHitEffect();
-      return;
+    if (!hasResolvedImpact && progress >= POTATO_IMPACT_PROGRESS) {
+      hasResolvedImpact = true;
+      const impactPoint = resolveImpactAtProgress({
+        progress: POTATO_IMPACT_PROGRESS,
+        sceneX,
+        sceneY,
+        throwX,
+        initialVelocityY,
+        gravity,
+        rotationStart,
+        rotationTravel,
+      });
+
+      if (impactPoint) {
+        projectile.remove();
+        spawnPotatoImpact(impactPoint);
+        triggerPhotoHitEffect();
+        return;
+      }
+    }
+
+    if (hasResolvedImpact && !hasMovedBehindPhoto && progress >= peakTime) {
+      potatoProjectilesBack.appendChild(projectile);
+      hasMovedBehindPhoto = true;
     }
 
     if (progress < 1) {
@@ -443,11 +963,12 @@ const showScreen = (target) => {
     clearPotatoRespawnTimer();
     clearPotatoCursorReload();
     isPotatoReady = true;
-    isPointerOverArena = true;
+    isPointerOverArena = isCursorPointerActive;
     resetPotatoCursorRotation();
     syncPotatoCursor();
     setPotatoCursorVisible(true);
     playPotatoCursorReload();
+    ensureDebugHitboxTracking();
     return;
   }
 
@@ -458,6 +979,9 @@ const showScreen = (target) => {
   resetPotatoCursorRotation();
   setPotatoCursorVisible(false);
   clearThrownPotatoes();
+  lastThrowState = null;
+  stopDebugHitboxTracking();
+  updateDebugHitboxOverlay();
 };
 
 const rotateHello = () => {
@@ -519,13 +1043,35 @@ const setNoticeOpen = (isOpen) => {
 };
 
 const launchGame = () => {
-  if (!activePhoto || !gamePhoto) {
+  if ((!activePhoto && !isDebugMode) || !gamePhoto) {
     return;
   }
 
-  gameSessionLabel.textContent = sessionName.value.trim() || "Potato Target";
-  gameFileName.textContent = activePhoto.name;
+  gameSessionLabel.textContent = isDebugMode
+    ? "Debug Mode"
+    : (sessionName.value.trim() || "Potato Target");
+  gameFileName.textContent = isDebugMode ? "debug-target" : activePhoto.name;
   showScreen("game");
+};
+
+const enterDebugMode = () => {
+  if (!gamePhoto || !previewImage) {
+    return;
+  }
+
+  isDebugMode = true;
+  activePhoto = {
+    name: "debug-target",
+    type: "image/svg+xml",
+  };
+
+  previewImage.src = DEBUG_TARGET_DATA_URI;
+  gamePhoto.src = DEBUG_TARGET_DATA_URI;
+  fileName.textContent = "debug-target";
+  uploadIdle.hidden = true;
+  uploadPreview.hidden = false;
+  updateLaunchState();
+  launchGame();
 };
 
 const applyFile = (file) => {
@@ -533,6 +1079,7 @@ const applyFile = (file) => {
     return;
   }
 
+  isDebugMode = false;
   activePhoto = file;
   fileName.textContent = file.name;
 
@@ -550,6 +1097,11 @@ const applyFile = (file) => {
 
 startButton.addEventListener("click", () => {
   showScreen("setup");
+});
+
+welcomeTitle?.addEventListener("dblclick", (event) => {
+  event.preventDefault();
+  enterDebugMode();
 });
 
 photoInput.addEventListener("change", (event) => {
@@ -633,6 +1185,7 @@ window.addEventListener("pointermove", (event) => {
   const pointerDeltaY = event.clientY - lastPointerPosition.y;
   lastPointerPosition = { x: event.clientX, y: event.clientY };
   nudgePotatoCursorRotation(pointerDeltaX, pointerDeltaY);
+  isCursorPointerActive = true;
 
   if (!isGameScreenActive()) {
     return;
@@ -665,7 +1218,14 @@ arenaScene?.addEventListener("pointerleave", () => {
 });
 
 arenaScene?.addEventListener("pointerenter", (event) => {
+  if (event.pointerType === "mouse") {
+    isCursorPointerActive = true;
+  } else {
+    isCursorPointerActive = false;
+  }
+
   if (event.pointerType !== "mouse") {
+    setPotatoCursorVisible(false);
     return;
   }
 
@@ -685,6 +1245,7 @@ arenaScene?.addEventListener("pointerdown", (event) => {
   }
 
   event.preventDefault();
+  isCursorPointerActive = event.pointerType === "mouse";
   isPointerOverArena = true;
   lastPointerPosition = { x: event.clientX, y: event.clientY };
   throwPotato(event.clientX, event.clientY);
@@ -696,14 +1257,26 @@ window.addEventListener("resize", () => {
   }
 
   syncPotatoCursor();
+  updateDebugHitboxOverlay();
 });
 
 window.addEventListener("blur", () => {
   isPointerOverArena = false;
+  isCursorPointerActive = false;
   clearPotatoCursorReload();
   resetPotatoCursorRotation();
   setPotatoCursorVisible(false);
+  stopDebugHitboxTracking();
 });
+
+potatoCursor?.addEventListener("load", () => {
+  refreshPotatoHitPolygon();
+  updateDebugHitboxOverlay();
+});
+
+if (potatoCursor?.complete) {
+  refreshPotatoHitPolygon();
+}
 
 helloWords[helloIndex].classList.add("is-visible");
 updateLaunchState();

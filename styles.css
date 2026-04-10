@@ -122,6 +122,12 @@ input {
   box-shadow: var(--shadow);
 }
 
+.welcome-panel,
+.welcome-panel * {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
 .welcome-stack {
   max-width: 760px;
 }
@@ -604,6 +610,79 @@ input {
   overflow: hidden;
   pointer-events: none;
   z-index: 4;
+}
+
+.potato-projectiles-back {
+  z-index: 1;
+}
+
+.debug-hitbox-overlay {
+  position: absolute;
+  pointer-events: none;
+  border: 1px solid rgba(204, 102, 255, 0.96);
+  box-shadow:
+    0 0 0 1px rgba(204, 102, 255, 0.18),
+    0 0 14px rgba(204, 102, 255, 0.46);
+  border-radius: 6px;
+  z-index: 7;
+}
+
+.debug-potato-overlay {
+  position: absolute;
+  pointer-events: none;
+  z-index: 7;
+}
+
+.debug-potato-overlay svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.debug-potato-overlay polygon {
+  fill: none;
+  stroke: rgba(255, 94, 94, 0.96);
+  stroke-width: 1.4;
+  filter: drop-shadow(0 0 8px rgba(255, 94, 94, 0.48));
+}
+
+.debug-potato-reference {
+  position: absolute;
+  top: 24px;
+  right: 24px;
+  width: 176px;
+  padding: 10px 12px 12px;
+  border-radius: 16px;
+  background: rgba(15, 23, 42, 0.48);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 20px 36px rgba(15, 23, 42, 0.16);
+  backdrop-filter: blur(14px);
+  z-index: 8;
+  pointer-events: none;
+}
+
+.debug-reference-label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.debug-potato-reference svg {
+  width: 100%;
+  height: auto;
+  aspect-ratio: var(--debug-reference-aspect, 1 / 1);
+  overflow: visible;
+  display: block;
+}
+
+.debug-potato-reference polygon {
+  fill: rgba(255, 94, 94, 0.08);
+  stroke: rgba(255, 94, 94, 0.96);
+  stroke-width: 1.2;
+  filter: drop-shadow(0 0 8px rgba(255, 94, 94, 0.36));
 }
 
 .potato-cursor,
